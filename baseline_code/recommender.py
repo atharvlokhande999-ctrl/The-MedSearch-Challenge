@@ -1,87 +1,82 @@
+
 import pandas as pd
 from rapidfuzz import fuzz, process
 
-# Load dataset once
+# ----------------------------
+# LOAD + PREPROCESS (ONE TIME)
+# ----------------------------
 df = pd.read_csv("baseline_code/Medsearch_Data.csv")
 
-# ----------------------------
-# ADVANCED CLEANING & PRE-PROCESSING
-# ----------------------------
-# Strip spaces and lowercase once at startup to save loop time
 df.columns = df.columns.str.strip()
 
 def normalize(text):
-    if pd.isna(text): return ""
+    if pd.isna(text):
+        return ""
     return str(text).strip().lower()
 
-# Pre-calculate normalized columns for speed
-df["brand_norm"] = df["brand_name"].apply(normalize)
-df["ing_norm"] = df["primary_ingredient"].apply(normalize)
-df["strength_norm"] = df["primary_strength"].apply(lambda x: normalize(x).replace(" ", ""))
-df["dosage_norm"] = df["dosage_form"].apply(normalize)
+# Precompute normalized columns (vectorized)
+df["brand_norm"] = df["brand_name"].astype(str).str.strip().str.lower()
+df["ing_norm"] = df["primary_ingredient"].astype(str).str.strip().str.lower()
+df["strength_norm"] = df["primary_strength"].astype(str).str.replace(" ", "").str.lower()
+df["dosage_norm"] = df["dosage_form"].astype(str).str.strip().str.lower()
+
+# Convert to numpy arrays (FASTER access)
+brand_array = df["brand_norm"].values
 
 # ----------------------------
-# MAIN FUNCTION
+# MAIN FUNCTION (OPTIMIZED)
 # ----------------------------
 def recommend_alternatives(query, top_k=5):
     if not query:
         return pd.DataFrame()
 
-    query_norm = normalize(query)
+    query_norm = query.strip().lower()
 
-    # STEP 1: FASTER BRAND MATCHING
-    # Instead of scoring every row, we use process.extractOne for speed
-    match_result = process.extractOne(
-        query_norm, 
-        df["brand_norm"], 
-        scorer=fuzz.WRatio
-    )
+    # ⚡ FASTEST MATCH (no full loop)
+    match = process.extractOne(query_norm, brand_array, scorer=fuzz.WRatio)
 
-    if not match_result or match_result[1] < 60:
+    if not match or match[1] < 60:
         return pd.DataFrame()
 
-    best_match_idx = match_result[2]
-    best_match = df.iloc[best_match_idx]
+    idx = match[2]
+    base = df.iloc[idx]
 
-    # Reference values for comparison
-    base_ing = best_match["ing_norm"]
-    base_strength = best_match["strength_norm"]
-    base_dosage = best_match["dosage_norm"]
-    base_brand = best_match["brand_norm"]
+    base_ing = base["ing_norm"]
+    base_strength = base["strength_norm"]
+    base_dosage = base["dosage_norm"]
+    base_brand = base["brand_norm"]
 
-    # STEP 2: SMART FILTERING (The "Speed Secret")
-    # Instead of scoring 100,000 rows, only score rows with the same ingredient
-    # This dramatically cuts down runtime for the Speed Bonus
-    potential_matches = df[df["ing_norm"] == base_ing].copy()
-    
-    # If same-ingredient list is too small, broaden search slightly
-    if len(potential_matches) <= 1:
-        # Fallback to broader fuzzy search if no exact ingredient match
+    # ⚡ FILTER FIRST (huge speed gain)
+    mask = (df["ing_norm"].values == base_ing)
+    potential_idx = mask.nonzero()[0]
+
+    if len(potential_idx) <= 1:
         return pd.DataFrame()
 
-    # STEP 3: REFINED WEIGHTED SCORING
-    def calculate_score(row):
-        # We already know Ingredient is a match (100%)
-        # Focus on Strength and Dosage
-        
-        # Strength matching (strip spaces for consistency)
-        s_match = fuzz.ratio(row["strength_norm"], base_strength)
-        
-        # Dosage matching
-        d_match = 100 if row["dosage_norm"] == base_dosage else 0
-        
-        # Final Score (Weighted)
-        # Since Ingredients are filtered, we weight Strength and Dosage heavily
-        return (s_match * 0.7) + (d_match * 0.3)
+    subset = df.iloc[potential_idx]
 
-    potential_matches["final_score"] = potential_matches.apply(calculate_score, axis=1)
+    # ⚡ VECTORIZE STRENGTH SIMILARITY
+    strength_scores = [
+        fuzz.ratio(s, base_strength)
+        for s in subset["strength_norm"].values
+    ]
 
-    # Remove the exact same medicine from results
-    results = potential_matches[potential_matches["brand_norm"] != base_brand]
+    # ⚡ VECTORIZE DOSAGE MATCH
+    dosage_scores = (subset["dosage_norm"].values == base_dosage) * 100
 
-    # Sort and Return
-    results = results.sort_values(by="final_score", ascending=False)
+    # ⚡ FINAL SCORE (NUMPY FAST)
+    final_scores = (0.7 * pd.Series(strength_scores).values +
+                    0.3 * dosage_scores)
 
-    return results.head(top_k)[
+    subset = subset.copy()
+    subset["final_score"] = final_scores
+
+    # ⚡ REMOVE SAME BRAND (vectorized)
+    subset = subset[subset["brand_norm"].values != base_brand]
+
+    # ⚡ FAST SORT (nlargest faster than sort_values)
+    result = subset.nlargest(top_k, "final_score")
+
+    return result[
         ["brand_name", "primary_ingredient", "primary_strength", "dosage_form"]
     ]
