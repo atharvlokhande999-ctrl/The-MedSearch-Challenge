@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 df = pd.read_csv("baseline_code/Medsearch_Data.csv")
 df.columns = df.columns.str.strip()
@@ -13,22 +14,28 @@ df["ing_norm"] = df["primary_ingredient"].map(normalize)
 df["strength_norm"] = df["primary_strength"].map(lambda x: normalize(x).replace(" ", ""))
 df["dosage_norm"] = df["dosage_form"].map(normalize)
 
-ingredient_groups = {k: v for k, v in df.groupby("ing_norm")}
-brand_list = df["brand_norm"].tolist()
+# 🔥 Precompute sets (BIG SPEED BOOST)
+df["strength_set"] = df["strength_norm"].map(set)
+df["brand_set"] = df["brand_norm"].map(set)
 
-def simple_similarity(a, b):
-    if not a or not b:
+ingredient_groups = {k: v for k, v in df.groupby("ing_norm")}
+
+brand_list = df["brand_norm"].tolist()
+brand_sets = df["brand_set"].tolist()
+
+def fast_similarity(set_a, set_b):
+    if not set_a or not set_b:
         return 0
-    set_a = set(a)
-    set_b = set(b)
     return int(100 * len(set_a & set_b) / len(set_a | set_b))
 
 def extract_best_match(query):
+    q_set = set(query)
+
     best_score = -1
     best_idx = -1
 
-    for i, brand in enumerate(brand_list):
-        score = simple_similarity(query, brand)
+    for i in range(len(brand_list)):
+        score = fast_similarity(q_set, brand_sets[i])
         if score > best_score:
             best_score = score
             best_idx = i
@@ -49,7 +56,7 @@ def recommend_alternatives(query):
     base = df.iloc[idx]
 
     base_ing = base["ing_norm"]
-    base_strength = base["strength_norm"]
+    base_strength_set = base["strength_set"]
     base_dosage = base["dosage_norm"]
     base_brand = base["brand_norm"]
 
@@ -57,34 +64,40 @@ def recommend_alternatives(query):
     if potential is None or len(potential) <= 1:
         return pd.DataFrame()
 
-    best_score = -1
-    best_row = None
+    # Convert to arrays for speed
+    strength_sets = potential["strength_set"].values
+    dosage_arr = potential["dosage_norm"].values
+    brand_arr = potential["brand_norm"].values
 
-    for _, row in potential.iterrows():
-        if row["brand_norm"] == base_brand:
+    best_score = -1
+    best_idx = -1
+
+    for i in range(len(potential)):
+        if brand_arr[i] == base_brand:
             continue
 
-        # Fast scoring
-        s_match = simple_similarity(row["strength_norm"], base_strength)
-        d_match = 100 if row["dosage_norm"] == base_dosage else 0
+        s_match = fast_similarity(strength_sets[i], base_strength_set)
+        d_match = 100 if dosage_arr[i] == base_dosage else 0
 
         score = (s_match * 0.7) + (d_match * 0.3)
 
-        # 🔥 EARLY EXIT (perfect match)
         if score == 100:
-            return pd.DataFrame([row[[
-                "brand_name", "primary_ingredient",
-                "primary_strength", "dosage_form"
-            ]]])
+            best_idx = i
+            break
 
         if score > best_score:
             best_score = score
-            best_row = row
+            best_idx = i
 
-    if best_row is None:
+    if best_idx == -1:
         return pd.DataFrame()
 
-    return pd.DataFrame([best_row[[
-        "brand_name", "primary_ingredient",
-        "primary_strength", "dosage_form"
+    row = potential.iloc[best_idx]
+
+    return pd.DataFrame([row[[
+        "brand_name",
+        "primary_ingredient",
+        "primary_strength",
+        "dosage_form"
     ]]])
+    
