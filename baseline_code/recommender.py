@@ -80,7 +80,7 @@ def recommend_alternatives(query):
         d_match = 100 if dosage_arr[i] == base_dosage else 0
 
         score = (s_match * 0.7) + (d_match * 0.3)
-
+#
         if score == 100:
             best_idx = i
             break
