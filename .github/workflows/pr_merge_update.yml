@@ -1,0 +1,60 @@
+name: Merge PR Leaderboard Update
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  update_after_merge:
+    # Only run if the PR was actually merged, not just closed
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Main Repo
+        uses: actions/checkout@v4
+        with:
+          # Important: checkout with full history to allow pushing back to main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r baseline_code/requirements.txt
+
+      - name: Run Hidden Evaluation
+        # This generates the output JSON needed for the leaderboard
+        run: python hidden_evaluation/evaluator.py
+
+      - name: Read Score
+        id: score_step
+        run: |
+          # Extract the final_score from the generated JSON
+          SCORE=$(python -c "import json; print(json.load(open('outputs/evaluation_result.json'))['final_score'])")
+          echo "score=$SCORE" >> $GITHUB_OUTPUT
+
+      - name: Update Leaderboard Files
+        run: |
+          # Calls the updated script that handles both .json and .md files
+          python -c "from leaderboard.update_leaderboard import update_leaderboard; update_leaderboard('${{ github.event.pull_request.user.login }}', '${{ github.event.pull_request.number }}', ${{ steps.score_step.outputs.score }})"
+
+      - name: Save Participant Submission
+        run: |
+          # Create a specific folder for the contributor's code
+          mkdir -p participant_submissions/${{ github.event.pull_request.user.login }}_PR${{ github.event.pull_request.number }}
+          cp baseline_code/recommender.py participant_submissions/${{ github.event.pull_request.user.login }}_PR${{ github.event.pull_request.number }}/
+
+      - name: Commit Updated Files
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          
+          # Stage all changes: leaderboard.md, leaderboard.json, and the new submission file
+          git add leaderboard/ participant_submissions/
+          
+          # Use a dynamic commit message with the contributor's name
+          git commit -m "🏆 Achievement: ${{ github.event.pull_request.user.login }} joined the leaderboard!"
+          git push

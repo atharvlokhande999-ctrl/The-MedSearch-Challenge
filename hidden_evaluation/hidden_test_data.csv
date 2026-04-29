@@ -1,0 +1,27 @@
+﻿brand_name,input_type
+Mycodryl Syrup,exact
+mycodrylsyrup,no_space
+Vildapin 50mg Tablet,exact
+VILDAPIN 50MG TABLET,mixed_case
+Propol 20mg Tablet,exact
+propol20mgtablet,no_space
+B Cef DS Syrup ,exact
+B CEF DS SYRUP ,mixed_case
+Chophos 200mg Injection,exact
+chophos200mginjection,no_space
+C-Tech 1000mg Injection,exact
+c tech 1000mg injection,spacing_variant
+Nimuwin Plus Suspension,exact
+NIMUWIN PLUS SUSPENSION,mixed_case
+Arclav DS Dry Syrup ,exact
+arclavdsdrysyrup,no_space
+Rosuless-F Tablet,exact
+rosuless f tablet,spacing_variant
+Varmox-CV 228.5 Tablet DT,exact
+varmoxcv228.5tabletdt,no_space
+Allegra 120mg Tablet,exact
+ALLEGRA 120MG TABLET,mixed_case
+Amoxicla 500mg/125mg Tablet ,exact
+amoxicla500mg125mgtablet,no_space
+Amoxicorn-CV 625 Tablet,exact
+AMOXICORN CV 625 TABLET,mixed_case

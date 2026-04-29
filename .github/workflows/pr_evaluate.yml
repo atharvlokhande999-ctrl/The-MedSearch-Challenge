@@ -1,0 +1,30 @@
+name: PR Auto Evaluation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  evaluate_submission:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r baseline_code/requirements.txt
+
+      - name: Run Hidden Evaluation
+        run: python hidden_evaluation/evaluator.py
+
+      - name: Upload evaluation result
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-result
+          path: evaluation_result.json

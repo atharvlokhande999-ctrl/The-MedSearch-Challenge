@@ -1,0 +1,25 @@
+# --- Python Environment ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# --- Local Test Data (Don't push your local search results) ---
+outputs/
+*.log
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# --- Competition Specific ---
+# We keep the leaderboard folder, but you might want to ignore 
+# temporary artifacts if they appear. 
+# DO NOT ignore leaderboard/*.json if you want to keep the history on GitHub.
+
+# Optional: Ignore the CSV log if you only want the .md and .json to be public
+# leaderboard/submissions_log.csv

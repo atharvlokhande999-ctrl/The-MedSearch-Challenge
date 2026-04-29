@@ -1,0 +1,20 @@
+[
+    {
+        "username": "Atharva (Developer)",
+        "score": 75.8,
+        "pr_number": "DEV-01",
+        "date": "2026-04-29"
+    },
+    {
+        "username": "Local-Test-User",
+        "score": 46.15,
+        "pr_number": "TEST",
+        "date": "2026-04-29"
+    },
+    {
+        "username": "Local-Test-User",
+        "score": 46.15,
+        "pr_number": "TEST",
+        "date": "2026-04-29"
+    }
+]
